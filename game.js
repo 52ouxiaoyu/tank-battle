@@ -122,7 +122,7 @@ function generateLevel(index) {
         level.totalEnemies = Math.floor(6 + index * 0.8);
         level.bricks = [];
         level.steels = [];
-        const baseCount = 5 + Math.floor(rng() * 5);
+        const baseCount = 15 + Math.floor(rng() * 10);
         for (let i = 0; i < baseCount; i++) {
             const x = 2 + Math.floor(rng() * 22);
             const y = 2 + Math.floor(rng() * 18);
@@ -801,7 +801,7 @@ class Game {
                 new Player(this, TILE_SIZE * 16, TILE_SIZE * 22, COLORS.PLAYER2, { up:'ArrowUp', down:'ArrowDown', left:'ArrowLeft', right:'ArrowRight', shoot:'NumpadEnter' }, 2)
             ];
         } else {
-            this.players.forEach(p => { p.alive = true; p.level = 0; });
+            this.players.forEach(p => { p.alive = true; });
             this.players[0].x = TILE_SIZE * 8; this.players[0].y = TILE_SIZE * 22;
             this.players[1].x = TILE_SIZE * 16; this.players[1].y = TILE_SIZE * 22;
         }
