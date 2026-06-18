@@ -460,22 +460,22 @@ class Player extends Tank {
         if (Math.abs(dx) > Math.abs(dy)) moveDir = dx > 0 ? 'RIGHT' : 'LEFT';
         else moveDir = dy > 0 ? 'DOWN' : 'UP';
 
-        if (this.aiMoveDir && this.aiMoveTimer > 0) {
-            const currentDir = this.aiMoveDir;
-            const isOpposite = (moveDir === 'UP' && currentDir === 'DOWN') || (moveDir === 'DOWN' && currentDir === 'UP') || (moveDir === 'LEFT' && currentDir === 'RIGHT') || (moveDir === 'RIGHT' && currentDir === 'LEFT');
-            if (isOpposite || Math.random() < 0.3) {
-                this.aiMoveDir = moveDir;
-                this.aiMoveTimer = 20 + Math.floor(Math.random() * 15);
-            }
-        } else {
+        if (!this.aiMoveDir) {
             this.aiMoveDir = moveDir;
-            this.aiMoveTimer = 20 + Math.floor(Math.random() * 15);
+            this.aiMoveTimer = 30 + Math.floor(Math.random() * 20);
         }
-        if (this.aiMoveTimer > 0) this.aiMoveTimer--;
+        if (this.aiMoveTimer > 0) {
+            this.aiMoveTimer--;
+        } else {
+            if (moveDir !== this.aiMoveDir) {
+                this.aiMoveDir = moveDir;
+                this.aiMoveTimer = 30 + Math.floor(Math.random() * 20);
+            }
+        }
 
         if (this.isTileBlocked(myX, myY, this.aiMoveDir)) {
             this.aiMoveDir = this.getAlternateDir(this.aiMoveDir, dx, dy);
-            this.aiMoveTimer = 15;
+            this.aiMoveTimer = 20;
         }
 
         this.move(this.aiMoveDir);
