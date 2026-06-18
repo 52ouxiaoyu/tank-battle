@@ -7,7 +7,7 @@ const TILE_TYPES = { EMPTY: 0, BRICK: 1, STEEL: 2, WATER: 3, FOREST: 4, ICE: 5, 
 const COLORS = { BRICK: '#B53120', BRICK_LIGHT: '#DC5341', STEEL: '#AAAAAA', STEEL_LIGHT: '#EEEEEE', WATER: '#2131E7', FOREST: '#21B521', PLAYER1: '#E7E721', PLAYER2: '#63C6FF', ENEMY: '#E7E7E7', BASE: '#E79C21' };
 const POWERUP_TYPES = { SHIELD: '🛡️', BOMB: '💣', STAR: '⭐', SHOVEL: '🏗️', LIFE: '❤️' };
 
-const TOTAL_LEVELS = 1000;
+const MAX_BULLETS = 30;
 
 function seededRandom(seed) {
     let s = seed;
@@ -190,7 +190,7 @@ class PowerUp {
     applyEffect(player) {
         this.game.effects.push(new Effect(this.x + 32, this.y + 32, 'EXPLOSION'));
         if (this.type === POWERUP_TYPES.BOMB) this.game.enemies.forEach(e => e.destroy());
-        else if (this.type === POWERUP_TYPES.SHIELD) player.setShield(600);
+        else if (this.type === POWERUP_TYPES.SHIELD) player.setShield(360);
         else if (this.type === POWERUP_TYPES.STAR) player.upgrade();
         else if (this.type === POWERUP_TYPES.SHOVEL) this.game.fortifyBase();
         else if (this.type === POWERUP_TYPES.LIFE) this.game.lives++;
@@ -272,10 +272,16 @@ class GameMap {
                 if (i < 0 || i >= GRID_SIZE || j < 0 || j >= GRID_SIZE) return true;
                 const tile = this.grid[i][j];
                 if (isBullet) { if (tile === TILE_TYPES.BRICK || tile === TILE_TYPES.STEEL || tile === TILE_TYPES.BASE) return true; }
-                else { if (tile !== TILE_TYPES.EMPTY && tile !== TILE_TYPES.FOREST && tile !== TILE_TYPES.ICE) return true; }
+                else { if (tile !== TILE_TYPES.EMPTY && tile !== TILE_TYPES.FOREST && tile !== TILE_TYPES.ICE && tile !== TILE_TYPES.WATER) return true; }
             }
         }
         return false;
+    }
+    isOnWater(x, y, width, height) {
+        const cx = Math.floor((x + width/2) / TILE_SIZE);
+        const cy = Math.floor((y + height/2) / TILE_SIZE);
+        if (cx < 0 || cx >= GRID_SIZE || cy < 0 || cy >= GRID_SIZE) return false;
+        return this.grid[cy][cx] === TILE_TYPES.WATER;
     }
 }
 
@@ -283,10 +289,35 @@ class InputHandler {
     constructor() {
         this.keys = {};
         this.gameKeys = ['KeyW', 'KeyS', 'KeyA', 'KeyD', 'Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'NumpadEnter', 'KeyP'];
+        this.touchState = { up: false, down: false, left: false, right: false, shoot: false };
+        this.isMobile = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
         window.addEventListener('keydown', (e) => { this.keys[e.code] = true; if (this.gameKeys.includes(e.code)) e.preventDefault(); });
         window.addEventListener('keyup', (e) => this.keys[e.code] = false);
+        if (this.isMobile) this.initTouchControls();
     }
-    isDown(code) { return !!this.keys[code]; }
+    initTouchControls() {
+        const dpadBtns = document.querySelectorAll('.dpad-btn');
+        const shootBtn = document.getElementById('touch-shoot');
+        dpadBtns.forEach(btn => {
+            const dir = btn.dataset.dir;
+            btn.addEventListener('touchstart', (e) => { e.preventDefault(); this.touchState[dir] = true; });
+            btn.addEventListener('touchend', (e) => { e.preventDefault(); this.touchState[dir] = false; });
+        });
+        if (shootBtn) {
+            shootBtn.addEventListener('touchstart', (e) => { e.preventDefault(); this.touchState.shoot = true; });
+            shootBtn.addEventListener('touchend', (e) => { e.preventDefault(); this.touchState.shoot = false; });
+        }
+    }
+    isDown(code) {
+        if (this.keys[code]) return true;
+        if (!this.isMobile) return false;
+        if (code === 'KeyW' || code === 'ArrowUp') return this.touchState.up;
+        if (code === 'KeyS' || code === 'ArrowDown') return this.touchState.down;
+        if (code === 'KeyA' || code === 'ArrowLeft') return this.touchState.left;
+        if (code === 'KeyD' || code === 'ArrowRight') return this.touchState.right;
+        if (code === 'Space' || code === 'NumpadEnter') return this.touchState.shoot;
+        return false;
+    }
 }
 
 class Bullet {
@@ -340,7 +371,9 @@ class Tank {
     update() { if (this.cooldown > 0) this.cooldown--; if (this.shieldTimer > 0) this.shieldTimer--; }
     move(dir) {
         this.direction = dir; let nx = this.x; let ny = this.y;
-        if (dir === 'UP') ny -= this.speed; else if (dir === 'DOWN') ny += this.speed; else if (dir === 'LEFT') nx -= this.speed; else if (dir === 'RIGHT') nx += this.speed;
+        const onWater = this.game.map.isOnWater(this.x, this.y, this.width, this.height);
+        const moveSpeed = onWater ? this.speed * 0.5 : this.speed;
+        if (dir === 'UP') ny -= moveSpeed; else if (dir === 'DOWN') ny += moveSpeed; else if (dir === 'LEFT') nx -= moveSpeed; else if (dir === 'RIGHT') nx += moveSpeed;
         if (!this.game.map.isBlocked(nx, ny, this.width, this.height)) { this.x = nx; this.y = ny; this.onIce = false; }
         else {
             if (dir === 'UP' || dir === 'DOWN') { const cx = this.x + this.width / 2; const gx = Math.floor(cx / TILE_SIZE) * TILE_SIZE + 4; if (Math.abs(this.x - gx) < 16) this.x += (gx - this.x) * 0.2; }
@@ -360,7 +393,11 @@ class Tank {
         }
     }
     shoot() {
-        if (this.cooldown > 0) return; this.cooldown = Math.max(5, 20 - this.level * 5);
+        if (this.cooldown > 0) return;
+        const bulletCount = this.game.bullets.filter(b => b.owner === this).length;
+        const maxBullets = this instanceof Player ? 3 : 2;
+        if (bulletCount >= maxBullets) return;
+        this.cooldown = Math.max(5, 20 - this.level * 5);
         let bx = this.x + 26; let by = this.y + 26;
         if (this.direction === 'UP') by = this.y - 10; else if (this.direction === 'DOWN') by = this.y + 60; else if (this.direction === 'LEFT') bx = this.x - 10; else if (this.direction === 'RIGHT') bx = this.x + 60;
         this.game.bullets.push(new Bullet(this.game, this, bx, by, this.direction, this.level));
@@ -440,7 +477,6 @@ class Player extends Tank {
         this.id = id;
         this.aiActive = false;
         this.lastInputTime = Date.now();
-        this.aiTarget = null;
         this.aiDodgeDir = null;
         this.aiDodgeTimer = 0;
         this.aiMoveDir = null;
@@ -792,6 +828,7 @@ class Game {
         this.announcements = [];
         this.floatingTexts = [];
         this.pausePressed = false;
+        this.bossWarning = 0;
         for(let i=0; i<100; i++) this.weatherParticles.push({x: Math.random()*CANVAS_SIZE, y: Math.random()*CANVAS_SIZE, s: 2 + Math.random()*5});
         document.getElementById('start-btn').onclick = () => this.startGame(); document.getElementById('restart-btn').onclick = () => this.startGame();
         this.loop();
@@ -799,7 +836,7 @@ class Game {
     shakeScreen(intensity) { this.shakeTimer = intensity; this.shakeIntensity = intensity; }
     showAnnouncement(text, color = '#fff') { this.announcements.push({ text, color, timer: 120, y: CANVAS_SIZE / 2 }); }
     showFloatingText(text, x, y, color = '#fff') { this.floatingTexts.push({ text, x, y, color, timer: 60, vy: -2 }); }
-    startGame() { this.currentStage = 0; this.lives = 3; this.players = []; this.startLevel(); document.getElementById('hud').classList.remove('hidden'); }
+    startGame() { this.currentStage = 0; this.lives = 3; this.players = []; this.startLevel(); document.getElementById('hud').classList.remove('hidden'); if (this.input.isMobile) document.getElementById('touch-controls').classList.remove('hidden'); }
     startLevel() {
         this.gameState = 'STAGE_START'; this.stageStartTimer = 120;
         document.getElementById('start-screen').classList.add('hidden'); document.getElementById('game-over-screen').classList.add('hidden');
@@ -856,12 +893,14 @@ class Game {
         if (!this.game.input.isDown('KeyP')) this.pausePressed = false;
         if (this.paused) return;
 
-        this.weatherParticles.forEach(p => {
-            if (this.weather === 'RAIN') { p.y += p.s * 2; p.x += 1; }
-            else if (this.weather === 'SNOW') { p.y += p.s * 0.5; p.x += Math.sin(p.y/20); }
-            else if (this.weather === 'WIND') { p.x += p.s * 3; }
-            if (p.y > CANVAS_SIZE) p.y = 0; if (p.x > CANVAS_SIZE) p.x = 0; if (p.x < 0) p.x = CANVAS_SIZE;
-        });
+        if (this.weather !== 'NONE') {
+            this.weatherParticles.forEach(p => {
+                if (this.weather === 'RAIN') { p.y += p.s * 2; p.x += 1; }
+                else if (this.weather === 'SNOW') { p.y += p.s * 0.5; p.x += Math.sin(p.y/20); }
+                else if (this.weather === 'WIND') { p.x += p.s * 3; }
+                if (p.y > CANVAS_SIZE) p.y = 0; if (p.x > CANVAS_SIZE) p.x = 0; if (p.x < 0) p.x = CANVAS_SIZE;
+            });
+        }
         if (this.weather === 'LIGHTNING' && Math.random() < 0.02) this.lightningFlash = 5;
         if (this.lightningFlash > 0) this.lightningFlash--;
 
@@ -877,20 +916,27 @@ class Game {
         this.floatingTexts = this.floatingTexts.filter(t => { t.timer--; t.y += t.vy; return t.timer > 0; });
 
         const bossChance = this.currentStage < 5 ? 0 : (this.currentStage < 20 ? 0.0002 : 0.0005);
-        if (Math.random() < bossChance && !this.enemies.some(e => e.isBoss)) {
-            const bossSize = TILE_SIZE * 3;
-            const spawnPositions = [
-                { x: CANVAS_SIZE/2 - bossSize/2, y: CANVAS_SIZE/2 - bossSize/2 },
-                { x: TILE_SIZE * 2, y: TILE_SIZE * 2 },
-                { x: TILE_SIZE * 20, y: TILE_SIZE * 2 }
-            ];
-            let spawnPos = spawnPositions[Math.floor(Math.random() * spawnPositions.length)];
-            const isPlayerNear = this.players.some(p => p.alive && Math.hypot(p.x - spawnPos.x, p.y - spawnPos.y) < TILE_SIZE * 5);
-            if (this.map.isBlocked(spawnPos.x, spawnPos.y, bossSize, bossSize) || isPlayerNear) {
-                spawnPos = spawnPositions.find(p => !this.map.isBlocked(p.x, p.y, bossSize, bossSize) && !this.players.some(pl => pl.alive && Math.hypot(pl.x - p.x, pl.y - p.y) < TILE_SIZE * 5)) || spawnPositions[0];
+        if (Math.random() < bossChance && !this.enemies.some(e => e.isBoss) && !this.bossWarning) {
+            this.bossWarning = 180;
+            this.showAnnouncement('WARNING! BOSS INCOMING!', '#f00');
+        }
+        if (this.bossWarning > 0) {
+            this.bossWarning--;
+            if (this.bossWarning === 0) {
+                const bossSize = TILE_SIZE * 3;
+                const spawnPositions = [
+                    { x: CANVAS_SIZE/2 - bossSize/2, y: CANVAS_SIZE/2 - bossSize/2 },
+                    { x: TILE_SIZE * 2, y: TILE_SIZE * 2 },
+                    { x: TILE_SIZE * 20, y: TILE_SIZE * 2 }
+                ];
+                let spawnPos = spawnPositions[Math.floor(Math.random() * spawnPositions.length)];
+                const isPlayerNear = this.players.some(p => p.alive && Math.hypot(p.x - spawnPos.x, p.y - spawnPos.y) < TILE_SIZE * 5);
+                if (this.map.isBlocked(spawnPos.x, spawnPos.y, bossSize, bossSize) || isPlayerNear) {
+                    spawnPos = spawnPositions.find(p => !this.map.isBlocked(p.x, p.y, bossSize, bossSize) && !this.players.some(pl => pl.alive && Math.hypot(pl.x - p.x, pl.y - p.y) < TILE_SIZE * 5)) || spawnPositions[0];
+                }
+                this.effects.push(new Effect(spawnPos.x + bossSize/2, spawnPos.y + bossSize/2, 'SPAWN', 5));
+                setTimeout(() => { if (this.gameState === 'PLAYING') this.enemies.push(new Boss(this, spawnPos.x, spawnPos.y, this.currentStage)); }, 1000);
             }
-            this.effects.push(new Effect(spawnPos.x + bossSize/2, spawnPos.y + bossSize/2, 'SPAWN', 5));
-            setTimeout(() => { if (this.gameState === 'PLAYING') this.enemies.push(new Boss(this, spawnPos.x, spawnPos.y, this.currentStage)); }, 1000);
         }
 
         if (this.fortifyTimer > 0) { this.fortifyTimer--; if (this.fortifyTimer === 0) this.unfortifyBase(); }
@@ -914,7 +960,17 @@ class Game {
     }
     draw() {
         this.ctx.fillStyle = '#000'; this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
-        if (this.gameState === 'STAGE_START') { this.ctx.fillStyle = '#aaa'; this.ctx.font = '60px "Courier New"'; this.ctx.textAlign = 'center'; this.ctx.fillText(`STAGE ${this.currentStage + 1}`, CANVAS_SIZE/2, CANVAS_SIZE/2); return; }
+        if (this.gameState === 'STAGE_START') {
+            const progress = 1 - this.stageStartTimer / 120;
+            this.ctx.fillStyle = '#000'; this.ctx.fillRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
+            this.ctx.fillStyle = '#aaa'; this.ctx.font = '60px "Courier New"'; this.ctx.textAlign = 'center';
+            this.ctx.globalAlpha = progress < 0.1 ? progress * 10 : (progress > 0.8 ? (1 - progress) * 5 : 1);
+            this.ctx.fillText(`STAGE ${this.currentStage + 1}`, CANVAS_SIZE/2, CANVAS_SIZE/2 - 20);
+            this.ctx.font = '24px "Courier New"';
+            this.ctx.fillText(`Enemies: ${this.enemiesRemaining}`, CANVAS_SIZE/2, CANVAS_SIZE/2 + 30);
+            this.ctx.globalAlpha = 1;
+            return;
+        }
         if (this.gameState === 'PLAYING' || this.gameState === 'STAGE_CLEAR') {
             this.ctx.save();
             this.ctx.translate(this.shakeX, this.shakeY);

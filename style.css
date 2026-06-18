@@ -99,3 +99,55 @@ button {
     cursor: pointer;
     font-weight: bold;
 }
+
+#touch-controls {
+    position: fixed;
+    bottom: 20px;
+    left: 0;
+    right: 0;
+    display: flex;
+    justify-content: space-between;
+    padding: 0 20px;
+    z-index: 100;
+    pointer-events: auto;
+}
+
+#touch-dpad {
+    position: relative;
+    width: 120px;
+    height: 120px;
+}
+
+.dpad-btn {
+    position: absolute;
+    width: 40px;
+    height: 40px;
+    background: rgba(255,255,255,0.3);
+    border: 2px solid #fff;
+    color: #fff;
+    font-size: 20px;
+    margin: 0;
+    padding: 0;
+}
+
+.dpad-btn[data-dir="up"] { top: 0; left: 40px; }
+.dpad-btn[data-dir="down"] { bottom: 0; left: 40px; }
+.dpad-btn[data-dir="left"] { top: 40px; left: 0; }
+.dpad-btn[data-dir="right"] { top: 40px; right: 0; }
+
+#touch-shoot {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    background: rgba(255,0,0,0.5);
+    border: 3px solid #f00;
+    color: #fff;
+    font-size: 16px;
+    margin: 0;
+    padding: 0;
+    align-self: flex-end;
+}
+
+@media (min-width: 768px) {
+    #touch-controls { display: none; }
+}
