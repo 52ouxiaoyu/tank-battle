@@ -29,22 +29,24 @@ function generateLevel(index) {
     const waterDensity = Math.min(0.05 + difficulty * 0.05, 0.1);
     const forestDensity = (index % 5 === 0) ? 0.3 : 0;
     const iceDensity = (index % 7 === 0) ? 0.15 : 0;
-    const grid = Array(GRID_SIZE).fill().map(() => Array(GRID_SIZE).fill(0));
     const isProtected = (x, y) => (x >= 7 && x <= 17 && y >= 21) || (x >= 11 && x <= 14 && y >= 23);
     const isSpawn = (x, y) => (x >= 0 && x <= 3 && y >= 0 && y <= 3) || (x >= 11 && x <= 14 && y >= 0 && y <= 3) || (x >= 22 && x <= 25 && y >= 0 && y <= 3);
     if (pattern === 'grid') {
         for (let y = 2; y < 22; y += 4) for (let x = 2; x < 24; x += 4) {
+            if (isProtected(x, y) || isSpawn(x, y)) continue;
             if (rng() < brickDensity) { const w = 2 + Math.floor(rng() * 2); const h = 2 + Math.floor(rng() * 2); level.bricks.push([y, x, h, w]); }
             if (rng() < steelDensity) level.steels.push([y, x, 2, 2]);
         }
     } else if (pattern === 'cross') {
         for (let i = 2; i < 24; i++) {
+            if (isProtected(i, 12) || isSpawn(i, 12)) continue;
             if (rng() < brickDensity) level.bricks.push([12, i, 2, 2]);
             if (rng() < brickDensity) level.bricks.push([i, 12, 2, 2]);
             if (rng() < steelDensity) level.steels.push([i, i, 2, 2]);
         }
     } else if (pattern === 'maze') {
         for (let y = 2; y < 22; y += 3) for (let x = 2; x < 24; x += 3) {
+            if (isProtected(x, y) || isSpawn(x, y)) continue;
             if (rng() < brickDensity * 1.5) level.bricks.push([y, x, 3, 1]);
             if (rng() < brickDensity * 1.5) level.bricks.push([y, x, 1, 3]);
             if (rng() < steelDensity) level.steels.push([y, x, 2, 2]);
@@ -52,12 +54,14 @@ function generateLevel(index) {
     } else if (pattern === 'circle') {
         const cx = 13, cy = 13;
         for (let y = 2; y < 24; y++) for (let x = 2; x < 24; x++) {
+            if (isProtected(x, y) || isSpawn(x, y)) continue;
             const dist = Math.hypot(x - cx, y - cy);
             if (dist > 4 && dist < 10 && rng() < brickDensity) level.bricks.push([y, x, 1, 1]);
             if (dist > 3 && dist < 4 && rng() < steelDensity * 2) level.steels.push([y, x, 1, 1]);
         }
     } else if (pattern === 'diamond') {
         for (let y = 2; y < 24; y++) for (let x = 2; x < 24; x++) {
+            if (isProtected(x, y) || isSpawn(x, y)) continue;
             const dist = Math.abs(x - 13) + Math.abs(y - 13);
             if (dist > 5 && dist < 12 && rng() < brickDensity) level.bricks.push([y, x, 1, 1]);
             if (dist === 5 && rng() < steelDensity * 3) level.steels.push([y, x, 1, 1]);
@@ -69,22 +73,36 @@ function generateLevel(index) {
             const x = Math.floor(13 + Math.cos(angle) * r);
             const y = Math.floor(13 + Math.sin(angle) * r);
             if (x >= 2 && x < 24 && y >= 2 && y < 22) {
+                if (isProtected(x, y) || isSpawn(x, y)) continue;
                 if (rng() < brickDensity * 2) level.bricks.push([y, x, 2, 2]);
                 if (rng() < steelDensity) level.steels.push([y, x, 2, 2]);
             }
         }
     } else if (pattern === 'fortress') {
-        for (let x = 4; x < 22; x += 2) { level.bricks.push([4, x, 2, 1]); level.bricks.push([20, x, 2, 1]); }
-        for (let y = 4; y < 20; y += 2) { level.bricks.push([y, 4, 1, 2]); level.bricks.push([y, 20, 1, 2]); }
+        for (let x = 4; x < 22; x += 2) {
+            if (!isProtected(x, 4) && !isSpawn(x, 4)) level.bricks.push([4, x, 2, 1]);
+            if (!isProtected(x, 20) && !isSpawn(x, 20)) level.bricks.push([20, x, 2, 1]);
+        }
+        for (let y = 4; y < 20; y += 2) {
+            if (!isProtected(4, y) && !isSpawn(4, y)) level.bricks.push([y, 4, 1, 2]);
+            if (!isProtected(20, y) && !isSpawn(20, y)) level.bricks.push([y, 20, 1, 2]);
+        }
         level.steels.push([6, 6, 2, 2]); level.steels.push([6, 18, 2, 2]); level.steels.push([16, 6, 2, 2]); level.steels.push([16, 18, 2, 2]);
         if (difficulty > 0.3) level.steels.push([10, 10, 4, 4]);
     } else if (pattern === 'arena') {
-        for (let x = 6; x < 20; x += 2) { level.bricks.push([6, x, 2, 1]); level.bricks.push([18, x, 2, 1]); }
-        for (let y = 6; y < 18; y += 2) { level.bricks.push([y, 6, 1, 2]); level.bricks.push([y, 18, 1, 2]); }
+        for (let x = 6; x < 20; x += 2) {
+            if (!isProtected(x, 6) && !isSpawn(x, 6)) level.bricks.push([6, x, 2, 1]);
+            if (!isProtected(x, 18) && !isSpawn(x, 18)) level.bricks.push([18, x, 2, 1]);
+        }
+        for (let y = 6; y < 18; y += 2) {
+            if (!isProtected(6, y) && !isSpawn(6, y)) level.bricks.push([y, 6, 1, 2]);
+            if (!isProtected(18, y) && !isSpawn(18, y)) level.bricks.push([y, 18, 1, 2]);
+        }
         level.steels.push([12, 12, 2, 2]);
         if (difficulty > 0.5) { level.steels.push([8, 8, 2, 2]); level.steels.push([16, 16, 2, 2]); }
     } else if (pattern === 'corridor') {
         for (let y = 4; y < 20; y += 4) for (let x = 2; x < 24; x++) {
+            if (isProtected(x, y) || isSpawn(x, y)) continue;
             if (rng() < brickDensity) level.bricks.push([y, x, 1, 1]);
             if (x === 12 && rng() < steelDensity * 3) level.steels.push([y, x, 1, 1]);
         }
@@ -93,6 +111,7 @@ function generateLevel(index) {
         for (let i = 0; i < count; i++) {
             const x = 2 + Math.floor(rng() * 22);
             const y = 2 + Math.floor(rng() * 18);
+            if (isProtected(x, y) || isSpawn(x, y)) continue;
             const w = 1 + Math.floor(rng() * 3);
             const h = 1 + Math.floor(rng() * 3);
             if (rng() < steelDensity * 3) level.steels.push([y, x, h, w]);
@@ -629,30 +648,12 @@ class Player extends Tank {
         }
         return bestDir;
     }
-    checkLineOfSight(x, y, dir) {
-        for (let d = TILE_SIZE; d < TILE_SIZE * 12; d += TILE_SIZE) {
-            let tx = x, ty = y;
-            if (dir === 'UP') ty -= d; else if (dir === 'DOWN') ty += d;
-            else if (dir === 'LEFT') tx -= d; else if (dir === 'RIGHT') tx += d;
-            const gx = Math.floor(tx / TILE_SIZE);
-            const gy = Math.floor(ty / TILE_SIZE);
-            if (gx < 0 || gx >= GRID_SIZE || gy < 0 || gy >= GRID_SIZE) return false;
-            const tile = this.game.map.grid[gy][gx];
-            if (tile === TILE_TYPES.BRICK || tile === TILE_TYPES.STEEL) return false;
-        }
-        for (const e of this.game.enemies) {
-            if (!e.alive) continue;
-            const ex = e.x + e.width / 2;
-            const ey = e.y + e.height / 2;
-            if (dir === 'UP' && Math.abs(ex - x) < 30 && ey < y) return true;
-            if (dir === 'DOWN' && Math.abs(ex - x) < 30 && ey > y) return true;
-            if (dir === 'LEFT' && Math.abs(ey - y) < 30 && ex < x) return true;
-            if (dir === 'RIGHT' && Math.abs(ey - y) < 30 && ex > x) return true;
-        }
-        return Math.random() < 0.02;
+    getPerpendicularDir(dir) {
+        if (dir === 'UP' || dir === 'DOWN') return Math.random() < 0.5 ? 'LEFT' : 'RIGHT';
+        return Math.random() < 0.5 ? 'UP' : 'DOWN';
     }
 }
-class Enemy extends Tank { constructor(game, x, y) { super(game, x, y, COLORS.ENEMY); this.speed = 2; this.dirTimer = 0; } update() { super.update(); if (this.dirTimer <= 0) { this.direction = ['UP', 'DOWN', 'LEFT', 'RIGHT'][Math.floor(Math.random() * 4)]; this.dirTimer = 30 + Math.random() * 60; } else this.dirTimer--; const ox = this.x; const oy = this.y; this.move(this.direction); if (this.x === ox && this.y === oy) this.dirTimer = 0; if (Math.random() * 100 < 5) this.shoot(); } }
+class Enemy extends Tank { constructor(game, x, y, stage = 0) { super(game, x, y, COLORS.ENEMY); this.speed = 2 + Math.min(stage * 0.1, 2); this.dirTimer = 0; } update() { super.update(); if (this.dirTimer <= 0) { this.direction = ['UP', 'DOWN', 'LEFT', 'RIGHT'][Math.floor(Math.random() * 4)]; this.dirTimer = 30 + Math.random() * 60; } else this.dirTimer--; const ox = this.x; const oy = this.y; this.move(this.direction); if (this.x === ox && this.y === oy) this.dirTimer = 0; if (Math.random() * 100 < 5) this.shoot(); } }
 
 class Boss extends Enemy {
     constructor(game, x, y, stage = 0) {
@@ -886,8 +887,9 @@ class Game {
                 { x: TILE_SIZE * 20, y: TILE_SIZE * 2 }
             ];
             let spawnPos = spawnPositions[Math.floor(Math.random() * spawnPositions.length)];
-            if (this.map.isBlocked(spawnPos.x, spawnPos.y, bossSize, bossSize)) {
-                spawnPos = spawnPositions[0];
+            const isPlayerNear = this.players.some(p => p.alive && Math.hypot(p.x - spawnPos.x, p.y - spawnPos.y) < TILE_SIZE * 5);
+            if (this.map.isBlocked(spawnPos.x, spawnPos.y, bossSize, bossSize) || isPlayerNear) {
+                spawnPos = spawnPositions.find(p => !this.map.isBlocked(p.x, p.y, bossSize, bossSize) && !this.players.some(pl => pl.alive && Math.hypot(pl.x - p.x, pl.y - p.y) < TILE_SIZE * 5)) || spawnPositions[0];
             }
             this.effects.push(new Effect(spawnPos.x + bossSize/2, spawnPos.y + bossSize/2, 'SPAWN', 5));
             setTimeout(() => { if (this.gameState === 'PLAYING') this.enemies.push(new Boss(this, spawnPos.x, spawnPos.y, this.currentStage)); }, 1000);
@@ -898,7 +900,7 @@ class Game {
             this.spawnTimer--;
             if (this.spawnTimer <= 0) {
                 const sx = [TILE_SIZE * 2, TILE_SIZE * 12, TILE_SIZE * 22][Math.floor(Math.random() * 3)]; const sy = TILE_SIZE * 2; this.effects.push(new Effect(sx + TILE_SIZE, sy + TILE_SIZE, 'SPAWN'));
-                setTimeout(() => { if (this.gameState === 'PLAYING') { this.enemies.push(new Enemy(this, sx, sy)); this.enemiesRemaining--; } }, 1000); this.spawnTimer = 180;
+                setTimeout(() => { if (this.gameState === 'PLAYING') { this.enemies.push(new Enemy(this, sx, sy, this.currentStage)); this.enemiesRemaining--; } }, 1000); this.spawnTimer = 180;
             }
         } else if (this.enemiesRemaining === 0 && this.enemies.length === 0) { this.gameState = 'STAGE_CLEAR'; setTimeout(() => this.nextLevel(), 2000); }
         
