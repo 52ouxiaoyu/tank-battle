@@ -162,7 +162,7 @@ class Effect {
 }
 
 class PowerUp {
-    constructor(game, x, y, type) { this.game = game; this.x = x; this.y = y; this.type = type; this.width = 64; this.height = 64; this.timer = 600; this.active = true; }
+    constructor(game, x, y, type) { this.game = game; this.x = x; this.y = y; this.type = type; this.width = 64; this.height = 64; this.timer = 900; this.active = true; }
     update() {
         this.timer--; if (this.timer <= 0) this.active = false;
         this.game.players.forEach(p => { if (p.alive && this.x < p.x + p.width && this.x + this.width > p.x && this.y < p.y + p.height && this.y + this.height > p.y) { this.applyEffect(p); this.active = false; } });
@@ -261,7 +261,7 @@ class GameMap {
 class InputHandler {
     constructor() {
         this.keys = {};
-        this.gameKeys = ['KeyW', 'KeyS', 'KeyA', 'KeyD', 'Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'NumpadEnter'];
+        this.gameKeys = ['KeyW', 'KeyS', 'KeyA', 'KeyD', 'Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'NumpadEnter', 'KeyP'];
         window.addEventListener('keydown', (e) => { this.keys[e.code] = true; if (this.gameKeys.includes(e.code)) e.preventDefault(); });
         window.addEventListener('keyup', (e) => this.keys[e.code] = false);
     }
@@ -320,10 +320,22 @@ class Tank {
     move(dir) {
         this.direction = dir; let nx = this.x; let ny = this.y;
         if (dir === 'UP') ny -= this.speed; else if (dir === 'DOWN') ny += this.speed; else if (dir === 'LEFT') nx -= this.speed; else if (dir === 'RIGHT') nx += this.speed;
-        if (!this.game.map.isBlocked(nx, ny, this.width, this.height)) { this.x = nx; this.y = ny; }
+        if (!this.game.map.isBlocked(nx, ny, this.width, this.height)) { this.x = nx; this.y = ny; this.onIce = false; }
         else {
             if (dir === 'UP' || dir === 'DOWN') { const cx = this.x + this.width / 2; const gx = Math.floor(cx / TILE_SIZE) * TILE_SIZE + 4; if (Math.abs(this.x - gx) < 16) this.x += (gx - this.x) * 0.2; }
             else { const cy = this.y + this.height / 2; const gy = Math.floor(cy / TILE_SIZE) * TILE_SIZE + 4; if (Math.abs(this.y - gy) < 16) this.y += (gy - this.y) * 0.2; }
+        }
+        const gx = Math.floor((this.x + this.width/2) / TILE_SIZE);
+        const gy = Math.floor((this.y + this.height/2) / TILE_SIZE);
+        if (gx >= 0 && gx < GRID_SIZE && gy >= 0 && gy < GRID_SIZE && this.game.map.grid[gy][gx] === TILE_TYPES.ICE) {
+            if (!this.onIce) { this.onIce = true; this.iceSlideDir = dir; this.iceSlideTimer = 10; }
+        } else { this.onIce = false; }
+        if (this.onIce && this.iceSlideTimer > 0) {
+            this.iceSlideTimer--;
+            let sx = this.x, sy = this.y;
+            if (this.iceSlideDir === 'UP') sy -= this.speed * 0.5; else if (this.iceSlideDir === 'DOWN') sy += this.speed * 0.5;
+            else if (this.iceSlideDir === 'LEFT') sx -= this.speed * 0.5; else if (this.iceSlideDir === 'RIGHT') sx += this.speed * 0.5;
+            if (!this.game.map.isBlocked(sx, sy, this.width, this.height)) { this.x = sx; this.y = sy; }
         }
     }
     shoot() {
@@ -418,7 +430,7 @@ class Player extends Tank {
     update() {
         if (!this.alive) return;
         super.update();
-        if (this.comboCount > 0 && Date.now() - this.lastKillTime > 3000) this.comboCount = 0;
+        if (this.killStreak > 0 && Date.now() - this.lastKillTime > 5000) this.killStreak = 0;
         this.checkIdle();
         if (this.aiActive) this.runAI();
         else {
@@ -640,7 +652,7 @@ class Player extends Tank {
         return Math.random() < 0.02;
     }
 }
-class Enemy extends Tank { constructor(game, x, y) { super(game, x, y, COLORS.ENEMY); this.speed = 2; this.dirTimer = 0; } update() { super.update(); if (this.dirTimer <= 0) { this.direction = ['UP', 'DOWN', 'LEFT', 'RIGHT'][Math.floor(Math.random() * 4)]; this.dirTimer = 30 + Math.random() * 60; } else this.dirTimer--; const ox = this.x; const oy = this.y; this.move(this.direction); if (this.x === ox && this.y === oy) this.dirTimer = 0; if (Math.random() * 100 < 2) this.shoot(); } }
+class Enemy extends Tank { constructor(game, x, y) { super(game, x, y, COLORS.ENEMY); this.speed = 2; this.dirTimer = 0; } update() { super.update(); if (this.dirTimer <= 0) { this.direction = ['UP', 'DOWN', 'LEFT', 'RIGHT'][Math.floor(Math.random() * 4)]; this.dirTimer = 30 + Math.random() * 60; } else this.dirTimer--; const ox = this.x; const oy = this.y; this.move(this.direction); if (this.x === ox && this.y === oy) this.dirTimer = 0; if (Math.random() * 100 < 5) this.shoot(); } }
 
 class Boss extends Enemy {
     constructor(game, x, y, stage = 0) {
@@ -773,12 +785,14 @@ class Game {
         this.canvas = document.getElementById('game-canvas'); this.ctx = this.canvas.getContext('2d');
         this.canvas.width = CANVAS_SIZE; this.canvas.height = CANVAS_SIZE; this.input = new InputHandler(); this.map = new GameMap(this);
         this.players = []; this.enemies = []; this.bullets = []; this.effects = []; this.powerUps = []; this.fortifyTimer = 0; this.spawnTimer = 0;
-        this.currentStage = 0; this.gameState = 'START'; this.lives = 3;
+        this.currentStage = 0; this.gameState = 'START'; this.lives = 3; this.paused = false;
+        this.highScore = parseInt(localStorage.getItem('tankBattleHighScore') || '0');
         this.baseHealth = 5; this.maxBaseHealth = 5;
         this.weather = 'NONE'; this.weatherParticles = [];
         this.shakeX = 0; this.shakeY = 0; this.shakeTimer = 0;
         this.announcements = [];
         this.floatingTexts = [];
+        this.pausePressed = false;
         for(let i=0; i<100; i++) this.weatherParticles.push({x: Math.random()*CANVAS_SIZE, y: Math.random()*CANVAS_SIZE, s: 2 + Math.random()*5});
         document.getElementById('start-btn').onclick = () => this.startGame(); document.getElementById('restart-btn').onclick = () => this.startGame();
         this.loop();
@@ -794,7 +808,7 @@ class Game {
         this.map.reset(this.currentStage); this.bullets = []; this.enemies = []; this.effects = []; this.powerUps = []; this.fortifyTimer = 0;
         this.currentLevel = generateLevel(this.currentStage);
         this.enemiesRemaining = this.currentLevel.totalEnemies;
-        this.baseHealth = 5; this.maxBaseHealth = 5;
+        if (this.currentStage === 0) { this.baseHealth = 5; this.maxBaseHealth = 5; }
         if (this.players.length === 0) {
             this.players = [
                 new Player(this, TILE_SIZE * 8, TILE_SIZE * 22, COLORS.PLAYER1, { up:'KeyW', down:'KeyS', left:'KeyA', right:'KeyD', shoot:'Space' }, 1),
@@ -816,7 +830,7 @@ class Game {
         if (this.lives > 0) {
             this.lives--; this.updateHUD();
             setTimeout(() => {
-                player.alive = true; player.level = 0;
+                player.alive = true;
                 player.x = (player.id === 1) ? TILE_SIZE * 8 : TILE_SIZE * 16;
                 player.y = TILE_SIZE * 22;
                 player.setShield(180);
@@ -826,10 +840,22 @@ class Game {
     nextLevel() { this.currentStage++; this.startLevel(); }
     fortifyBase() { this.fortifyTimer = 600; this.map.setBaseWalls(TILE_TYPES.STEEL); }
     unfortifyBase() { this.map.setBaseWalls(TILE_TYPES.BRICK); }
-    gameOver() { this.gameState = 'GAME_OVER'; document.getElementById('game-over-screen').classList.remove('hidden'); }
+    gameOver() {
+        this.gameState = 'GAME_OVER';
+        const totalScore = this.players.reduce((sum, p) => sum + p.score, 0);
+        if (totalScore > this.highScore) {
+            this.highScore = totalScore;
+            localStorage.setItem('tankBattleHighScore', String(totalScore));
+        }
+        document.getElementById('game-over-screen').classList.remove('hidden');
+    }
     update() {
         if (this.gameState === 'STAGE_START') { this.stageStartTimer--; if (this.stageStartTimer <= 0) this.gameState = 'PLAYING'; return; }
         if (this.gameState !== 'PLAYING') return;
+
+        if (this.game.input.isDown('KeyP') && !this.pausePressed) { this.paused = !this.paused; this.pausePressed = true; }
+        if (!this.game.input.isDown('KeyP')) this.pausePressed = false;
+        if (this.paused) return;
 
         this.weatherParticles.forEach(p => {
             if (this.weather === 'RAIN') { p.y += p.s * 2; p.x += 1; }
@@ -868,7 +894,7 @@ class Game {
         }
 
         if (this.fortifyTimer > 0) { this.fortifyTimer--; if (this.fortifyTimer === 0) this.unfortifyBase(); }
-        if (this.enemiesRemaining > 0 && this.enemies.length < 4) {
+        if (this.enemiesRemaining > 0 && this.enemies.length < Math.min(4 + Math.floor(this.currentStage / 10), 8)) {
             this.spawnTimer--;
             if (this.spawnTimer <= 0) {
                 const sx = [TILE_SIZE * 2, TILE_SIZE * 12, TILE_SIZE * 22][Math.floor(Math.random() * 3)]; const sy = TILE_SIZE * 2; this.effects.push(new Effect(sx + TILE_SIZE, sy + TILE_SIZE, 'SPAWN'));
@@ -907,7 +933,9 @@ class Game {
             this.floatingTexts.forEach(t => { this.ctx.save(); this.ctx.fillStyle = t.color; this.ctx.font = 'bold 16px Arial'; this.ctx.textAlign = 'center'; this.ctx.globalAlpha = t.timer / 60; this.ctx.fillText(t.text, t.x, t.y); this.ctx.restore(); });
             this.announcements.forEach(a => { this.ctx.save(); const scale = 1 + Math.sin(a.timer / 10) * 0.1; this.ctx.translate(CANVAS_SIZE / 2, a.y); this.ctx.scale(scale, scale); this.ctx.fillStyle = '#000'; this.ctx.font = 'bold 48px Arial'; this.ctx.textAlign = 'center'; this.ctx.fillText(a.text, 2, 2); this.ctx.fillStyle = a.color; this.ctx.fillText(a.text, 0, 0); this.ctx.restore(); });
             if (this.gameState === 'STAGE_CLEAR') { this.ctx.fillStyle = 'rgba(0,0,0,0.5)'; this.ctx.fillRect(0, 0, CANVAS_SIZE, CANVAS_SIZE); this.ctx.fillStyle = '#fff'; this.ctx.font = '80px "Courier New"'; this.ctx.textAlign = 'center'; this.ctx.fillText("STAGE CLEAR!", CANVAS_SIZE/2, CANVAS_SIZE/2); }
+            if (this.paused) { this.ctx.fillStyle = 'rgba(0,0,0,0.7)'; this.ctx.fillRect(0, 0, CANVAS_SIZE, CANVAS_SIZE); this.ctx.fillStyle = '#fff'; this.ctx.font = '60px "Courier New"'; this.ctx.textAlign = 'center'; this.ctx.fillText("PAUSED", CANVAS_SIZE/2, CANVAS_SIZE/2 - 20); this.ctx.font = '24px "Courier New"'; this.ctx.fillText("Press P to resume", CANVAS_SIZE/2, CANVAS_SIZE/2 + 30); }
         }
+        if (this.highScore > 0) { this.ctx.fillStyle = '#ff0'; this.ctx.font = '16px Arial'; this.ctx.textAlign = 'right'; this.ctx.fillText(`HIGH SCORE: ${this.highScore}`, CANVAS_SIZE - 10, CANVAS_SIZE - 10); }
     }
     drawForest() { for (let y = 0; y < GRID_SIZE; y++) for (let x = 0; x < GRID_SIZE; x++) if (this.map.grid[y][x] === TILE_TYPES.FOREST) { this.ctx.fillStyle = 'rgba(33, 181, 33, 0.7)'; this.ctx.fillRect(x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE); } }
     loop() { this.update(); this.draw(); requestAnimationFrame(() => this.loop()); }
