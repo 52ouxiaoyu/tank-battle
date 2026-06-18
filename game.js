@@ -460,17 +460,22 @@ class Player extends Tank {
         if (Math.abs(dx) > Math.abs(dy)) moveDir = dx > 0 ? 'RIGHT' : 'LEFT';
         else moveDir = dy > 0 ? 'DOWN' : 'UP';
 
-        if (!this.aiMoveDir || this.aiMoveTimer <= 0 || moveDir !== this.aiMoveDir) {
-            if (!this.aiMoveDir || moveDir !== this.aiMoveDir) {
-                this.aiMoveTimer = 15 + Math.floor(Math.random() * 10);
+        if (this.aiMoveDir && this.aiMoveTimer > 0) {
+            const currentDir = this.aiMoveDir;
+            const isOpposite = (moveDir === 'UP' && currentDir === 'DOWN') || (moveDir === 'DOWN' && currentDir === 'UP') || (moveDir === 'LEFT' && currentDir === 'RIGHT') || (moveDir === 'RIGHT' && currentDir === 'LEFT');
+            if (isOpposite || Math.random() < 0.3) {
                 this.aiMoveDir = moveDir;
+                this.aiMoveTimer = 20 + Math.floor(Math.random() * 15);
             }
+        } else {
+            this.aiMoveDir = moveDir;
+            this.aiMoveTimer = 20 + Math.floor(Math.random() * 15);
         }
         if (this.aiMoveTimer > 0) this.aiMoveTimer--;
 
         if (this.isTileBlocked(myX, myY, this.aiMoveDir)) {
             this.aiMoveDir = this.getAlternateDir(this.aiMoveDir, dx, dy);
-            this.aiMoveTimer = 10;
+            this.aiMoveTimer = 15;
         }
 
         this.move(this.aiMoveDir);
