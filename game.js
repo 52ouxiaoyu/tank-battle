@@ -343,17 +343,35 @@ class Tank {
         }
     }
     draw(ctx) {
-        const px = this.x; const py = this.y; const w = this.width; const h = this.height; ctx.save(); ctx.fillStyle = this.color;
+        const px = this.x; const py = this.y; const w = this.width; const h = this.height; ctx.save();
+        if (this.level >= 1) {
+            ctx.shadowBlur = 8 + this.level * 4;
+            ctx.shadowColor = this.level >= 3 ? '#ff0' : (this.level === 2 ? '#0ff' : '#0f0');
+        }
+        ctx.fillStyle = this.color;
         if (this.direction === 'UP' || this.direction === 'DOWN') {
             ctx.fillRect(px + 8, py + 8, w - 16, h - 16); ctx.fillStyle = '#000'; ctx.fillRect(px, py, 8, h); ctx.fillRect(px + w - 8, py, 8, h);
             ctx.fillStyle = this.color; for (let i = 0; i < h; i += 8) { ctx.fillRect(px, py + i, 8, 4); ctx.fillRect(px + w - 8, py + i, 8, 4); }
             ctx.fillRect(px + w/2 - 8, py + h/2 - 8, 16, 16); ctx.strokeStyle = '#000'; ctx.strokeRect(px + w/2 - 8, py + h/2 - 8, 16, 16);
-            ctx.fillStyle = this.color; if (this.direction === 'UP') ctx.fillRect(px + w/2 - 4, py - 8, 8, 24); else ctx.fillRect(px + w/2 - 4, py + h - 16, 8, 24);
+            ctx.fillStyle = this.level >= 3 ? '#ff0' : this.color;
+            const barrelW = 6 + this.level * 2;
+            if (this.direction === 'UP') ctx.fillRect(px + w/2 - barrelW/2, py - 8, barrelW, 24 + this.level * 4);
+            else ctx.fillRect(px + w/2 - barrelW/2, py + h - 16 - this.level * 4, barrelW, 24 + this.level * 4);
         } else {
             ctx.fillRect(px + 8, py + 8, w - 16, h - 16); ctx.fillStyle = '#000'; ctx.fillRect(px, py, w, 8); ctx.fillRect(px, py + h - 8, w, 8);
             ctx.fillStyle = this.color; for (let i = 0; i < w; i += 8) { ctx.fillRect(px + i, py, 4, 8); ctx.fillRect(px + i, py + h - 8, 4, 8); }
             ctx.fillRect(px + w/2 - 8, py + h/2 - 8, 16, 16); ctx.strokeStyle = '#000'; ctx.strokeRect(px + w/2 - 8, py + h/2 - 8, 16, 16);
-            ctx.fillStyle = this.color; if (this.direction === 'LEFT') ctx.fillRect(px - 8, py + h/2 - 4, 24, 8); else ctx.fillRect(px + w - 16, py + h/2 - 4, 24, 8);
+            ctx.fillStyle = this.level >= 3 ? '#ff0' : this.color;
+            const barrelW = 6 + this.level * 2;
+            if (this.direction === 'LEFT') ctx.fillRect(px - 8 - this.level * 4, py + h/2 - barrelW/2, 24 + this.level * 4, barrelW);
+            else ctx.fillRect(px + w - 16 - this.level * 4, py + h/2 - barrelW/2, 24 + this.level * 4, barrelW);
+        }
+        if (this.level >= 2) {
+            ctx.fillStyle = this.level >= 3 ? '#fa0' : '#0ff';
+            ctx.fillRect(px + 2, py + 2, 6, 6);
+            ctx.fillRect(px + w - 8, py + 2, 6, 6);
+            ctx.fillRect(px + 2, py + h - 8, 6, 6);
+            ctx.fillRect(px + w - 8, py + h - 8, 6, 6);
         }
         ctx.fillStyle = 'rgba(255,255,255,0.3)'; ctx.fillRect(px + 12, py + 12, 4, 4); ctx.restore();
         if (this.shieldTimer > 0) { ctx.strokeStyle = '#fff'; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(px + 30, py + 30, 38, 0, Math.PI * 2); ctx.stroke(); }
