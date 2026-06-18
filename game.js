@@ -261,7 +261,7 @@ class GameMap {
 class InputHandler {
     constructor() {
         this.keys = {};
-        this.gameKeys = ['KeyW', 'KeyS', 'KeyA', 'KeyD', 'Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'NumpadEnter', 'ShiftLeft', 'Numpad0', 'KeyF', 'NumpadDecimal'];
+        this.gameKeys = ['KeyW', 'KeyS', 'KeyA', 'KeyD', 'Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'NumpadEnter'];
         window.addEventListener('keydown', (e) => { this.keys[e.code] = true; if (this.gameKeys.includes(e.code)) e.preventDefault(); });
         window.addEventListener('keyup', (e) => this.keys[e.code] = false);
     }
@@ -335,7 +335,7 @@ class Tank {
     destroy(killer) {
         if (this.shieldTimer > 0) return; this.alive = false; this.game.effects.push(new Effect(this.x + 30, this.y + 30, 'EXPLOSION', this.isBoss ? 3 : 1));
         this.game.shakeScreen(this.isBoss ? 15 : 5);
-        if (killer instanceof Player) { killer.addCombo(); const multiplier = killer.getComboMultiplier(); const points = (this.isBoss ? 500 : 100) * multiplier; killer.score += points; this.game.showFloatingText(`+${points}`, this.x + this.width/2, this.y - 10, multiplier > 1 ? '#ff0' : '#fff'); this.game.updateHUD(); }
+        if (killer instanceof Player) { const points = this.isBoss ? 500 : 100; killer.score += points; this.game.showFloatingText(`+${points}`, this.x + this.width/2, this.y - 10, '#fff'); this.game.updateHUD(); }
         if (this instanceof Player) this.game.handlePlayerDeath(this);
         if (this instanceof Enemy && Math.random() < 0.3) {
             const types = Object.values(POWERUP_TYPES); const type = types[Math.floor(Math.random() * types.length)];
@@ -372,60 +372,10 @@ class Player extends Tank {
         this.aiDodgeTimer = 0;
         this.aiMoveDir = null;
         this.aiMoveTimer = 0;
-        this.comboCount = 0;
-        this.lastKillTime = 0;
-        this.dashCooldown = 0;
-        this.dashTimer = 0;
-        this.feverMeter = 0;
-        this.feverActive = false;
-        this.feverTimer = 0;
-    }
-    addCombo() {
-        const now = Date.now();
-        if (now - this.lastKillTime < 3000) {
-            this.comboCount++;
-            if (this.comboCount >= 2) {
-                const announcements = ['', 'DOUBLE KILL!', 'TRIPLE KILL!', 'QUADRA KILL!', 'PENTA KILL!', 'MEGA KILL!', 'ULTRA KILL!', 'GODLIKE!', 'LEGENDARY!'];
-                const text = announcements[Math.min(this.comboCount, 8)];
-                if (text) this.game.showAnnouncement(text, this.comboCount >= 5 ? '#f00' : (this.comboCount >= 3 ? '#ff0' : '#0f0'));
-            }
-        } else {
-            this.comboCount = 1;
-        }
-        this.lastKillTime = now;
-        this.feverMeter = Math.min(this.feverMeter + 10, 100);
-    }
-    getComboMultiplier() { return Math.min(1 + Math.floor(this.comboCount / 2), 5); }
-    dash() {
-        if (this.dashCooldown > 0 || this.dashTimer > 0) return;
-        this.dashTimer = 8;
-        this.dashCooldown = 60;
-        this.speed *= 3;
-    }
-    activateFever() {
-        if (this.feverMeter < 100 || this.feverActive) return;
-        this.feverActive = true;
-        this.feverTimer = 300;
-        this.feverMeter = 0;
-        this.shieldTimer = Math.max(this.shieldTimer, 300);
-        this.speed = 10;
-        this.game.showAnnouncement('FEVER MODE!', '#f0f');
     }
     update() {
         if (!this.alive) return;
         super.update();
-        if (this.dashCooldown > 0) this.dashCooldown--;
-        if (this.dashTimer > 0) {
-            this.dashTimer--;
-            if (this.dashTimer === 0) this.speed = 4 + this.level;
-        }
-        if (this.feverActive) {
-            this.feverTimer--;
-            if (this.feverTimer <= 0) {
-                this.feverActive = false;
-                this.speed = 4 + this.level;
-            }
-        }
         if (this.comboCount > 0 && Date.now() - this.lastKillTime > 3000) this.comboCount = 0;
         this.checkIdle();
         if (this.aiActive) this.runAI();
@@ -435,8 +385,6 @@ class Player extends Tank {
             else if (this.game.input.isDown(this.controls.left)) this.move('LEFT');
             else if (this.game.input.isDown(this.controls.right)) this.move('RIGHT');
             if (this.game.input.isDown(this.controls.shoot)) this.shoot();
-            if (this.game.input.isDown(this.controls.dash)) this.dash();
-            if (this.game.input.isDown(this.controls.fever)) this.activateFever();
         }
     }
     checkIdle() {
@@ -456,8 +404,6 @@ class Player extends Tank {
         const baseX = 13 * TILE_SIZE;
         const baseY = 24 * TILE_SIZE;
 
-        if (this.feverMeter >= 100 && !this.feverActive) this.activateFever();
-
         let threat = this.findIncomingBullet(myX, myY);
         if (threat) {
             if (this.aiDodgeTimer <= 0) {
@@ -468,7 +414,6 @@ class Player extends Tank {
                 this.aiDodgeTimer--;
                 this.move(this.aiDodgeDir);
                 this.shoot();
-                if (this.dashCooldown <= 0 && Math.random() < 0.1) this.dash();
                 return;
             }
         }
@@ -805,11 +750,11 @@ class Game {
         this.baseHealth = 5; this.maxBaseHealth = 5;
         if (this.players.length === 0) {
             this.players = [
-                new Player(this, TILE_SIZE * 8, TILE_SIZE * 22, COLORS.PLAYER1, { up:'KeyW', down:'KeyS', left:'KeyA', right:'KeyD', shoot:'Space', dash:'ShiftLeft', fever:'KeyF' }, 1),
-                new Player(this, TILE_SIZE * 16, TILE_SIZE * 22, COLORS.PLAYER2, { up:'ArrowUp', down:'ArrowDown', left:'ArrowLeft', right:'ArrowRight', shoot:'NumpadEnter', dash:'Numpad0', fever:'NumpadDecimal' }, 2)
+                new Player(this, TILE_SIZE * 8, TILE_SIZE * 22, COLORS.PLAYER1, { up:'KeyW', down:'KeyS', left:'KeyA', right:'KeyD', shoot:'Space' }, 1),
+                new Player(this, TILE_SIZE * 16, TILE_SIZE * 22, COLORS.PLAYER2, { up:'ArrowUp', down:'ArrowDown', left:'ArrowLeft', right:'ArrowRight', shoot:'NumpadEnter' }, 2)
             ];
         } else {
-            this.players.forEach(p => { p.alive = true; p.level = 0; p.comboCount = 0; p.feverMeter = 0; p.feverActive = false; });
+            this.players.forEach(p => { p.alive = true; p.level = 0; });
             this.players[0].x = TILE_SIZE * 8; this.players[0].y = TILE_SIZE * 22;
             this.players[1].x = TILE_SIZE * 16; this.players[1].y = TILE_SIZE * 22;
         }
@@ -909,12 +854,11 @@ class Game {
                 else if (this.weather === 'LIGHTNING') { if (this.lightningFlash > 0) { this.ctx.fillStyle = `rgba(255, 255, 255, ${this.lightningFlash/10})`; this.ctx.fillRect(0, 0, CANVAS_SIZE, CANVAS_SIZE); } }
                 this.ctx.restore();
             }
-            this.players.forEach(p => { if(p.alive) { p.draw(this.ctx); if (p.aiActive) { this.ctx.save(); this.ctx.fillStyle = 'rgba(0,0,0,0.7)'; this.ctx.beginPath(); this.ctx.arc(p.x + 30, p.y - 12, 14, 0, Math.PI * 2); this.ctx.fill(); this.ctx.fillStyle = '#0f0'; this.ctx.font = 'bold 12px Arial'; this.ctx.textAlign = 'center'; this.ctx.fillText('AI', p.x + 30, p.y - 8); this.ctx.restore(); } if (p.feverActive) { this.ctx.save(); this.ctx.strokeStyle = '#f0f'; this.ctx.lineWidth = 3; this.ctx.beginPath(); this.ctx.arc(p.x + 30, p.y + 30, 40, 0, Math.PI * 2); this.ctx.stroke(); this.ctx.restore(); } } }); this.enemies.forEach(e => e.draw(this.ctx)); this.bullets.forEach(b => b.draw(this.ctx)); this.effects.forEach(e => e.draw(this.ctx)); this.powerUps.forEach(p => p.draw(this.ctx));
+            this.players.forEach(p => { if(p.alive) { p.draw(this.ctx); if (p.aiActive) { this.ctx.save(); this.ctx.fillStyle = 'rgba(0,0,0,0.7)'; this.ctx.beginPath(); this.ctx.arc(p.x + 30, p.y - 12, 14, 0, Math.PI * 2); this.ctx.fill(); this.ctx.fillStyle = '#0f0'; this.ctx.font = 'bold 12px Arial'; this.ctx.textAlign = 'center'; this.ctx.fillText('AI', p.x + 30, p.y - 8); this.ctx.restore(); } } }); this.enemies.forEach(e => e.draw(this.ctx)); this.bullets.forEach(b => b.draw(this.ctx)); this.effects.forEach(e => e.draw(this.ctx)); this.powerUps.forEach(p => p.draw(this.ctx));
             this.drawForest();
             this.ctx.restore();
             this.floatingTexts.forEach(t => { this.ctx.save(); this.ctx.fillStyle = t.color; this.ctx.font = 'bold 16px Arial'; this.ctx.textAlign = 'center'; this.ctx.globalAlpha = t.timer / 60; this.ctx.fillText(t.text, t.x, t.y); this.ctx.restore(); });
             this.announcements.forEach(a => { this.ctx.save(); const scale = 1 + Math.sin(a.timer / 10) * 0.1; this.ctx.translate(CANVAS_SIZE / 2, a.y); this.ctx.scale(scale, scale); this.ctx.fillStyle = '#000'; this.ctx.font = 'bold 48px Arial'; this.ctx.textAlign = 'center'; this.ctx.fillText(a.text, 2, 2); this.ctx.fillStyle = a.color; this.ctx.fillText(a.text, 0, 0); this.ctx.restore(); });
-            this.players.forEach(p => { if (p.alive && p.feverMeter > 0) { const barW = 100; const barH = 8; const barX = p.id === 1 ? 20 : CANVAS_SIZE - 120; const barY = CANVAS_SIZE - 30; this.ctx.fillStyle = '#333'; this.ctx.fillRect(barX, barY, barW, barH); this.ctx.fillStyle = p.feverMeter >= 100 ? `hsl(${Date.now() / 10 % 360}, 100%, 50%)` : '#a0f'; this.ctx.fillRect(barX, barY, barW * (p.feverMeter / 100), barH); this.ctx.strokeStyle = '#666'; this.ctx.strokeRect(barX, barY, barW, barH); this.ctx.fillStyle = '#fff'; this.ctx.font = '10px Arial'; this.ctx.textAlign = 'center'; this.ctx.fillText(p.feverMeter >= 100 ? 'FEVER! (F)' : 'FEVER', barX + barW / 2, barY - 4); } });
             if (this.gameState === 'STAGE_CLEAR') { this.ctx.fillStyle = 'rgba(0,0,0,0.5)'; this.ctx.fillRect(0, 0, CANVAS_SIZE, CANVAS_SIZE); this.ctx.fillStyle = '#fff'; this.ctx.font = '80px "Courier New"'; this.ctx.textAlign = 'center'; this.ctx.fillText("STAGE CLEAR!", CANVAS_SIZE/2, CANVAS_SIZE/2); }
         }
     }
