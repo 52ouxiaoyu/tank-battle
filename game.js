@@ -335,7 +335,29 @@ class Tank {
     destroy(killer) {
         if (this.shieldTimer > 0) return; this.alive = false; this.game.effects.push(new Effect(this.x + 30, this.y + 30, 'EXPLOSION', this.isBoss ? 3 : 1));
         this.game.shakeScreen(this.isBoss ? 15 : 5);
-        if (killer instanceof Player) { const points = this.isBoss ? 500 : 100; killer.score += points; this.game.showFloatingText(`+${points}`, this.x + this.width/2, this.y - 10, '#fff'); this.game.updateHUD(); }
+        if (killer instanceof Player) {
+            const points = this.isBoss ? 500 : 100;
+            killer.score += points;
+            this.game.showFloatingText(`+${points}`, this.x + this.width/2, this.y - 10, '#fff');
+            const now = Date.now();
+            if (now - killer.lastKillTime < 5000) {
+                killer.killStreak++;
+            } else {
+                killer.killStreak = 1;
+            }
+            killer.lastKillTime = now;
+            if (killer.killStreak === 3 && killer.level < 1) {
+                killer.upgrade();
+                this.game.showAnnouncement('LEVEL UP!', '#0f0');
+            } else if (killer.killStreak === 6 && killer.level < 2) {
+                killer.upgrade();
+                this.game.showAnnouncement('POWER UP!', '#0ff');
+            } else if (killer.killStreak === 10 && killer.level < 3) {
+                killer.upgrade();
+                this.game.showAnnouncement('MAX POWER!', '#ff0');
+            }
+            this.game.updateHUD();
+        }
         if (this instanceof Player) this.game.handlePlayerDeath(this);
         if (this instanceof Enemy && Math.random() < 0.3) {
             const types = Object.values(POWERUP_TYPES); const type = types[Math.floor(Math.random() * types.length)];
@@ -390,6 +412,8 @@ class Player extends Tank {
         this.aiDodgeTimer = 0;
         this.aiMoveDir = null;
         this.aiMoveTimer = 0;
+        this.killStreak = 0;
+        this.lastKillTime = 0;
     }
     update() {
         if (!this.alive) return;
