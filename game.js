@@ -26,7 +26,6 @@ function generateLevel(index) {
     const pattern = patterns[index % patterns.length];
     const brickDensity = 0.15 + difficulty * 0.2;
     const steelDensity = 0.02 + difficulty * 0.08;
-    const waterDensity = Math.min(0.05 + difficulty * 0.05, 0.1);
     const forestDensity = (index % 5 === 0) ? 0.3 : 0;
     const iceDensity = (index % 7 === 0) ? 0.15 : 0;
     const isProtected = (x, y) => (x >= 7 && x <= 17 && y >= 21) || (x >= 11 && x <= 14 && y >= 23);
@@ -145,6 +144,7 @@ function generateLevel(index) {
         for (let i = 0; i < baseCount; i++) {
             const x = 2 + Math.floor(rng() * 22);
             const y = 2 + Math.floor(rng() * 18);
+            if (isProtected(x, y) || isSpawn(x, y)) continue;
             const w = 1 + Math.floor(rng() * 2);
             const h = 1 + Math.floor(rng() * 2);
             level.bricks.push([y, x, h, w]);
@@ -154,6 +154,7 @@ function generateLevel(index) {
             for (let i = 0; i < steelCount; i++) {
                 const x = 4 + Math.floor(rng() * 18);
                 const y = 4 + Math.floor(rng() * 14);
+                if (isProtected(x, y) || isSpawn(x, y)) continue;
                 level.steels.push([y, x, 2, 2]);
             }
         }
@@ -202,6 +203,7 @@ class GameMap {
     constructor(game) { this.game = game; this.grid = []; }
     reset(levelIndex) {
         const level = generateLevel(levelIndex);
+        this.currentLevel = level;
         this.grid = Array(GRID_SIZE).fill().map(() => Array(GRID_SIZE).fill(0));
         for (let i = 0; i < GRID_SIZE; i++) this.grid[0][i] = this.grid[GRID_SIZE - 1][i] = this.grid[i][0] = this.grid[i][GRID_SIZE - 1] = TILE_TYPES.STEEL;
         level.bricks.forEach(([y,x,h,w]) => { for(let i=0; i<h; i++) for(let j=0; j<w; j++) if (y+i < GRID_SIZE && x+j < GRID_SIZE) this.grid[y+i][x+j] = TILE_TYPES.BRICK; });
@@ -648,10 +650,6 @@ class Player extends Tank {
         }
         return bestDir;
     }
-    getPerpendicularDir(dir) {
-        if (dir === 'UP' || dir === 'DOWN') return Math.random() < 0.5 ? 'LEFT' : 'RIGHT';
-        return Math.random() < 0.5 ? 'UP' : 'DOWN';
-    }
 }
 class Enemy extends Tank { constructor(game, x, y, stage = 0) { super(game, x, y, COLORS.ENEMY); this.speed = 2 + Math.min(stage * 0.1, 2); this.dirTimer = 0; } update() { super.update(); if (this.dirTimer <= 0) { this.direction = ['UP', 'DOWN', 'LEFT', 'RIGHT'][Math.floor(Math.random() * 4)]; this.dirTimer = 30 + Math.random() * 60; } else this.dirTimer--; const ox = this.x; const oy = this.y; this.move(this.direction); if (this.x === ox && this.y === oy) this.dirTimer = 0; if (Math.random() * 100 < 5) this.shoot(); } }
 
@@ -807,7 +805,7 @@ class Game {
         document.getElementById('start-screen').classList.add('hidden'); document.getElementById('game-over-screen').classList.add('hidden');
         document.getElementById('stage-info').innerText = `STAGE ${this.currentStage + 1}`;
         this.map.reset(this.currentStage); this.bullets = []; this.enemies = []; this.effects = []; this.powerUps = []; this.fortifyTimer = 0;
-        this.currentLevel = generateLevel(this.currentStage);
+        this.currentLevel = this.map.currentLevel;
         this.enemiesRemaining = this.currentLevel.totalEnemies;
         if (this.currentStage === 0) { this.baseHealth = 5; this.maxBaseHealth = 5; }
         if (this.players.length === 0) {
