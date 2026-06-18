@@ -1,0 +1,101 @@
+body {
+    margin: 0;
+    padding: 0;
+    background-color: #000;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    width: 100vw;
+    font-family: 'Courier New', Courier, monospace;
+    overflow: hidden;
+}
+
+#game-container {
+    position: relative;
+    width: 100vmin; /* Take full available square space */
+    height: 100vmin;
+    background-color: #000;
+    display: flex;
+    flex-direction: column;
+}
+
+#hud {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 80px;
+    background: rgba(0, 0, 0, 0.85);
+    color: #fff;
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+    z-index: 20;
+    border-bottom: 3px solid #E7E721;
+    font-size: 1.2rem;
+    pointer-events: none;
+}
+
+#mid-info {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 5px;
+}
+
+#stage-info { font-weight: bold; color: #aaa; }
+#lives-info { font-weight: bold; color: #ff4d4d; font-size: 1.4rem; }
+
+
+.p1-color { color: #E7E721; text-shadow: 2px 2px #550; }
+.p2-color { color: #63C6FF; text-shadow: 2px 2px #005; }
+
+canvas {
+    width: 100%;
+    height: 100%;
+    image-rendering: pixelated;
+    display: block;
+}
+
+#ui-layer {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 30;
+}
+
+.screen {
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0,0,0,0.9);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    color: #fff;
+    pointer-events: auto;
+}
+
+.hidden { display: none !important; }
+
+h1 {
+    font-size: 8vmin;
+    color: #f00;
+    margin: 0;
+    text-shadow: 4px 4px #500;
+}
+
+button {
+    margin-top: 5vh;
+    padding: 2vh 5vw;
+    font-size: 4vmin;
+    background-color: #ff0;
+    color: #000;
+    border: 4px solid #fff;
+    cursor: pointer;
+    font-weight: bold;
+}
