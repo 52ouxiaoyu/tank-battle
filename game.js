@@ -7,8 +7,6 @@ const TILE_TYPES = { EMPTY: 0, BRICK: 1, STEEL: 2, WATER: 3, FOREST: 4, ICE: 5, 
 const COLORS = { BRICK: '#B53120', BRICK_LIGHT: '#DC5341', STEEL: '#AAAAAA', STEEL_LIGHT: '#EEEEEE', WATER: '#2131E7', FOREST: '#21B521', PLAYER1: '#E7E721', PLAYER2: '#63C6FF', ENEMY: '#E7E7E7', BASE: '#E79C21' };
 const POWERUP_TYPES = { SHIELD: '🛡️', BOMB: '💣', STAR: '⭐', SHOVEL: '🏗️', LIFE: '❤️' };
 
-const MAX_BULLETS = 30;
-
 function seededRandom(seed) {
     let s = seed;
     return function() {
@@ -347,13 +345,14 @@ class Bullet {
         this.game.effects.push(new Effect(ex, ey, 'EXPLOSION', radius));
         if (small) return;
         const gridX = Math.floor(ex / TILE_SIZE); const gridY = Math.floor(ey / TILE_SIZE); const range = Math.ceil(radius);
+        const isPlayerBullet = this.owner instanceof Player;
         for (let iy = gridY - range; iy <= gridY + range; iy++) {
             for (let ix = gridX - range; ix <= gridX + range; ix++) {
                 if (iy < 0 || iy >= GRID_SIZE || ix < 0 || ix >= GRID_SIZE) continue;
                 const tile = this.game.map.grid[iy][ix];
                 if (tile === TILE_TYPES.BRICK) this.game.map.grid[iy][ix] = TILE_TYPES.EMPTY;
                 else if (tile === TILE_TYPES.STEEL && this.level >= 3) this.game.map.grid[iy][ix] = TILE_TYPES.EMPTY;
-                else if (tile === TILE_TYPES.BASE) {
+                else if (tile === TILE_TYPES.BASE && isPlayerBullet) {
                     this.game.baseHealth--;
                     if (this.game.baseHealth <= 0) { this.game.map.grid[iy][ix] = TILE_TYPES.BASE_DESTROYED; this.game.gameOver(); }
                     this.game.shakeScreen(8);
@@ -394,9 +393,11 @@ class Tank {
     }
     shoot() {
         if (this.cooldown > 0) return;
-        const bulletCount = this.game.bullets.filter(b => b.owner === this).length;
+        let bulletCount = 0;
+        for (const b of this.game.bullets) { if (b.owner === this && b.active) bulletCount++; }
         const maxBullets = this instanceof Player ? 3 : 2;
         if (bulletCount >= maxBullets) return;
+        if (this.game.bullets.length >= 50) return;
         this.cooldown = Math.max(5, 20 - this.level * 5);
         let bx = this.x + 26; let by = this.y + 26;
         if (this.direction === 'UP') by = this.y - 10; else if (this.direction === 'DOWN') by = this.y + 60; else if (this.direction === 'LEFT') bx = this.x - 10; else if (this.direction === 'RIGHT') bx = this.x + 60;
@@ -687,7 +688,7 @@ class Player extends Tank {
         return bestDir;
     }
 }
-class Enemy extends Tank { constructor(game, x, y, stage = 0) { super(game, x, y, COLORS.ENEMY); this.speed = 2 + Math.min(stage * 0.1, 2); this.dirTimer = 0; } update() { super.update(); if (this.dirTimer <= 0) { this.direction = ['UP', 'DOWN', 'LEFT', 'RIGHT'][Math.floor(Math.random() * 4)]; this.dirTimer = 30 + Math.random() * 60; } else this.dirTimer--; const ox = this.x; const oy = this.y; this.move(this.direction); if (this.x === ox && this.y === oy) this.dirTimer = 0; if (Math.random() * 100 < 5) this.shoot(); } }
+class Enemy extends Tank { constructor(game, x, y, stage = 0) { super(game, x, y, COLORS.ENEMY); const diffMult = game.difficulty === 'easy' ? 0.8 : (game.difficulty === 'hard' ? 1.2 : 1); this.speed = (2 + Math.min(stage * 0.1, 2)) * diffMult; this.dirTimer = 0; } update() { super.update(); if (this.dirTimer <= 0) { this.direction = ['UP', 'DOWN', 'LEFT', 'RIGHT'][Math.floor(Math.random() * 4)]; this.dirTimer = 30 + Math.random() * 60; } else this.dirTimer--; const ox = this.x; const oy = this.y; this.move(this.direction); if (this.x === ox && this.y === oy) this.dirTimer = 0; if (Math.random() * 100 < 5) this.shoot(); } }
 
 class Boss extends Enemy {
     constructor(game, x, y, stage = 0) {
@@ -719,6 +720,11 @@ class Boss extends Enemy {
         else if (angle > Math.PI/4 && angle <= 3*Math.PI/4) dir = 'DOWN';
         else if (angle > -3*Math.PI/4 && angle <= -Math.PI/4) dir = 'UP';
         else dir = 'LEFT';
+        const gx = Math.floor(bx / TILE_SIZE);
+        const gy = Math.floor(by / TILE_SIZE);
+        if (gx < 0 || gx >= GRID_SIZE || gy < 0 || gy >= GRID_SIZE) return;
+        const tile = this.game.map.grid[gy][gx];
+        if (tile === TILE_TYPES.BRICK || tile === TILE_TYPES.STEEL) return;
         this.game.bullets.push(new Bullet(this.game, this, bx - 8, by - 8, dir, this.level));
     }
     update() {
@@ -830,20 +836,39 @@ class Game {
         this.pausePressed = false;
         this.bossWarning = 0;
         for(let i=0; i<100; i++) this.weatherParticles.push({x: Math.random()*CANVAS_SIZE, y: Math.random()*CANVAS_SIZE, s: 2 + Math.random()*5});
-        document.getElementById('start-btn').onclick = () => this.startGame(); document.getElementById('restart-btn').onclick = () => this.startGame();
+        document.getElementById('start-btn').onclick = () => this.startGame();
+        document.getElementById('restart-btn').onclick = () => this.startGame();
+        document.querySelectorAll('.diff-btn').forEach(btn => {
+            btn.onclick = () => {
+                document.querySelectorAll('.diff-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+            };
+        });
+        this.difficulty = 'normal';
         this.loop();
     }
     shakeScreen(intensity) { this.shakeTimer = intensity; this.shakeIntensity = intensity; }
     showAnnouncement(text, color = '#fff') { this.announcements.push({ text, color, timer: 120, y: CANVAS_SIZE / 2 }); }
     showFloatingText(text, x, y, color = '#fff') { this.floatingTexts.push({ text, x, y, color, timer: 60, vy: -2 }); }
-    startGame() { this.currentStage = 0; this.lives = 3; this.players = []; this.startLevel(); document.getElementById('hud').classList.remove('hidden'); if (this.input.isMobile) document.getElementById('touch-controls').classList.remove('hidden'); }
+    startGame() {
+        const levelInput = document.getElementById('start-level');
+        const startLevel = Math.max(1, Math.min(1000, parseInt(levelInput.value) || 1)) - 1;
+        this.currentStage = startLevel;
+        this.lives = 3;
+        this.players = [];
+        this.difficulty = document.querySelector('.diff-btn.active')?.dataset.diff || 'normal';
+        this.startLevel();
+        document.getElementById('hud').classList.remove('hidden');
+        if (this.input.isMobile) document.getElementById('touch-controls').classList.remove('hidden');
+    }
     startLevel() {
         this.gameState = 'STAGE_START'; this.stageStartTimer = 120;
         document.getElementById('start-screen').classList.add('hidden'); document.getElementById('game-over-screen').classList.add('hidden');
         document.getElementById('stage-info').innerText = `STAGE ${this.currentStage + 1}`;
         this.map.reset(this.currentStage); this.bullets = []; this.enemies = []; this.effects = []; this.powerUps = []; this.fortifyTimer = 0;
         this.currentLevel = this.map.currentLevel;
-        this.enemiesRemaining = this.currentLevel.totalEnemies;
+        const diffMult = this.difficulty === 'easy' ? 0.7 : (this.difficulty === 'hard' ? 1.3 : 1);
+        this.enemiesRemaining = Math.floor(this.currentLevel.totalEnemies * diffMult);
         if (this.currentStage === 0) { this.baseHealth = 5; this.maxBaseHealth = 5; }
         if (this.players.length === 0) {
             this.players = [
